@@ -1,0 +1,100 @@
+reference 
+http://deltapython.com/2017/10/05/environment-variables-in-declarative-jenkinsfile/
+E
+
+nvironment variables in declarative Jenkinsfile
+Recently I found myself having to call a bunch of different shell tools inside of a Jenkinsfile. I really struggled to understand how to set, modify and view environment variables. Mostly this came down to the fact that my knowledge of groovy is minimal. Time for that to change.
+
+Of course the new Jenkins pipeline has two different DSLs available. Both are  groovy. This allows you to utilize the quite flexible string interpolation features in groovy.
+
+Simple Declarative
+Jenkins is a glue tool that holds everything else together. For me, this is often other scripts, tools accessed via the shell. I wanted to demonstrate some of the different ways to do environment variables and string interpolation with the shell, because the syntax is close enough to be really confusing. It is important to choose the correct quotes because this will determine if the shell or groovy interprets a variable.
+
+pipeline {
+  agent any
+  stages {
+    stage('Example') {
+      steps {
+        // interpolated by the shell
+        sh 'echo Shell $PWD' 
+        // interpolated by the shell
+        sh '''echo Shell $PWD'''
+        // interpolated in this file by Groovy
+        sh "echo Groovy $PWD"}}}}
+view rawJenkinsfile hosted with ❤ by GitHub
+[Declarative Pipeline] Running shell script
++ echo Shell /var/jenkins_home/workspace/Declarative Pipeline
+Shell /var/jenkins_home/workspace/Declarative Pipeline
+[Pipeline] sh
+[Declarative Pipeline] Running shell script
++ echo Shell /var/jenkins_home/workspace/Declarative Pipeline
+Shell /var/jenkins_home/workspace/Declarative Pipeline
+[Pipeline] sh
+[Declarative Pipeline] Running shell script
++ echo Groovy /
+Groovy /
+ 
+
+Complicated Declarative
+Next up is if you want to create new environment variables from old ones, for instance including BUILD_ID into another variable.
+
+pipeline {
+  agent any
+  stages {
+    stage('Example') {
+      environment {
+        // 'This value is exported to all commands in this stage'
+        AWESOME_BUILD = "${env.BUILD_ID + '/working'}"
+      }
+      steps {
+        sh 'mkdir -p $AWESOME_BUILD'
+        sh 'touch $AWESOME_BUILD/the_file'
+        // Try to export the variable
+        sh 'export AWESOME_FILE=$AWESOME_BUILD/the_file'
+        // But it won't show up here!
+        sh 'echo $AWESOME_FILE'
+        // However, if we bundle it in a single sh command
+        // it will work.
+        sh '''
+            export AWESOME_FILE=$AWESOME_BUILD/the_file
+            echo $AWESOME_FILE
+        '''
+      }
+    }
+  }
+}
+view rawJenkinsfile hosted with ❤ by GitHub
+Some notes:
+
+Line 7: You can set environment variables for a block by declaring an environment block. You’ll want to use straight groovy string interpolation to define variables (if necessary). This is one way to escape the declarative pipeline restrictions, because everything inside of the brackets is evaluated as groovy expressions. You should note that I went out of my way to make this example a little goofy, showing the use of groovy expressions inside of the string interpolation. It is equally valid to say AWESOME_FILE = "${env.BUILD_ID}" + "/working" with the same result, just using groovy string concatenation
+Lines 13 and 15 should remind you that each shis its own interpreter. You start afresh each time.
+Lines 18 through 21 are also an example of a sensible way to string together some shell commands in a readable and sensible fashion (since they execute sequentially in the same shell)
+[Pipeline] sh
+[Declarative Complicated Environment] Running shell script
++ mkdir -p 7/working
+[Pipeline] sh
+[Declarative Complicated Environment] Running shell script
++ touch 7/working/the_file
+[Pipeline] sh
+[Declarative Complicated Environment] Running shell script
++ export AWESOME_FILE=7/working/the_file
+[Pipeline] sh
+[Declarative Complicated Environment] Running shell script
++ echo
+
+[Pipeline] sh
+[Declarative Complicated Environment] Running shell script
++ export AWESOME_FILE=7/working/the_file
++ echo 7/working/the_file
+7/working/the_file
+ 
+
+Share this:
+Click to share on Twitter (Opens in new window)Click to share on Facebook (Opens in new window)Click to share on Google+ (Opens in new window)
+JENKINS
+Post navigation
+Previous Post:Docker internal registries Part 1
+Leave a Reply
+Your email address will not be published. Required fields are marked *
+
+Comment 
