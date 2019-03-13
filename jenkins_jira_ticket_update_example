@@ -1,0 +1,14 @@
+pipeline example from 
+https://github.com/jenkinsci/jira-plugin/blob/master/COMPATIBILITY.md#current-status
+node {
+ withCredentials([usernamePassword(credentialsId: 'XXX', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
+   stage('testing JIraIssueUpdateBuilder to update JIra ticket') {
+    step([$class: 'hudson.plugins.jira.JiraIssueUpdateBuilder', 
+            jqlSearch: "project = EX and labels = 'jenkins' and labels = '${version}'",
+            workflowActionName: 'Resolve Issue',
+            comment: 'comment'])
+            }
+            }
+ }       
+            
+            
