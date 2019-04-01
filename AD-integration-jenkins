@@ -1,0 +1,122 @@
+reference
+https://medium.com/modern-stack/implementing-active-directory-based-security-in-jenkins-f78dbac929de
+
+As your organization expands your usage of Jenkins, you will eventually find yourself in a position where you need to implement security and restrictions around your Jenkins installation. While Jenkins offers a number of helpful configuration options centered around security, if your organization is managed by Active Directory, you will invariably want to leverage that existing infrastructure within Jenkins. Fortunately, setting this up is actually quite easy.
+
+In this article, I will quickly walk through the configuration of AD Based security within Jenkins. By the end of the article, you should have enough information to be able to; configure AD Integration, allow users to login with their Domain accounts, and manage permissions using the Role Based Security plugin.
+
+Installing the needed Plugins
+The first thing you need to do is install the plugins that will be needed to complete this configuration.
+
+The two plugins we are going to use are;
+
+The Active Directory Plugin
+The Role-based Authorization Strategy Plugin
+Configure AD Integration
+Once you have installed these plugins, reboot the Jenkins instance for good measure.
+
+Once Jenkins is back up and running, we are going to navigate to the Configure Global Security page under Manage Jenkins;
+
+
+Ensure that the Enable Security checkbox is ticked.
+
+Under Security Realm, select the Active Directory radio button, then click the Add Domain button which appears to reveal the configuration options pertinent to AD.
+
+
+If the machine running Jenkins already has already been setup on the same network as your AD server, and configured to use the AD DNS servers, then the configuration of AD Integration can be as simple as entering the name of the AD Domain you want Jenkins to use for authentication.
+
+In many instances, you can simply enter the AD Domain in the Domain Name field highlighted above, then click the Test Domain button in the lower right corner. If this does not work for you, you may need to involve your networking team to fill in the additional fields present.
+
+Test Configuration
+Once you have saved the configuration, log out of Jenkins to test it.
+
+
+On the Login screen, enter your AD username (with or without the domain qualifer) and your AD password.
+
+Do be aware that the login process may take a short while to complete for you initially. Do not be alarmed if the login screen seems to hang, just be patient. Each users initial login process takes a bit longer than normal due to Jenkins loading information about the account from AD.
+
+Subsequent logins should complete much faster though.
+
+
+Once you have logged in to Jenkins, you will notice that Jenkins displays your Full Name in the top right corner. If you click your name, you will notice Jenkins has cached some additional details about the AD account, including all the AD Groups your account is a member of.
+
+
+Information found on this screen will be useful to us later when we begin to configure Role Based Security.
+
+For now, at this point the AD Integration configuration can be considered complete. We have configured Jenkins to Authenticate users against an existing AD Domain and confirmed that users are now able to login to this instance of Jenkins using their AD Domains.
+
+Configuring Role Based Security
+Now that we have configured Jenkins to use AD Integration, we can now take that configuration a step further and manage our users permissions, access levels, and rights by leveraging the AD\Windows Groups.
+
+Plan your Roles
+Prior to configuring Role Based Security, it would probably make sense to determine what roles you think you need and what kinds of permissions you would want those roles to have.
+
+For our example, we are going to create 3 roles; admin, developer, qa.
+
+Admins should be able to do anything.
+Developers should be able to run jobs, but not edit any configurations.
+QA should be able to view the build history of pertinent jobs.
+Configure Role Based Security
+Before we can begin to configure Role Based Security, we have to enable it. In Jenkins parlance, this is referred to as an Authorization Strategy. To do this, we are going to go back to the Configure Global Security screen under Manage Jenkins.
+
+Just underneath the section where we configured the AD Integration, you will find a section titled Authorization and select the “Role-Based Security option”;
+
+
+Once you select this radio button and click Save, go back to the Manage Jenkins screen and you will see a new option available in the list of options.
+
+
+This new option will lead you to the following screen;
+
+
+The first screen we are going to visit is the Manage Roles screen. On this screen, we are going to create our 3 roles as Global Roles and ensure they all have the Overall:Read permission. The Admin role will exist by default and will have all permissions by default as well.
+
+
+Without access to the Overall:Read role, users will not be able to login, so this is a minimum.
+
+It is important to be careful and complete when configuring Role Based Security because you may inadvertently lock yourself out of your Jenkins instance.
+
+Once you have added the roles you want, and ensured they all have Overall:Read, click the Save button. You will be automatically redirected to the Manage and Assign Roles screen. At this point, we are going to click the Assign Roles button.
+
+By default, Your account and Anonymous will probably already be shown on this screen. What we want to do now is allow other people to login to our Jenkins instance and we are going to do that by adding the appropriate Windows Groups on this page.
+
+If you need to lookup the appropriate Windows Groups, you should be able to use the following Powershell script, passing an appropriate username;
+
+(New-Object System.DirectoryServices.DirectorySearcher("(&(objectCategory=User)(samAccountName=smcenery))")).FindOne().GetDirectoryEntry().memberOf
+This will print out all the Windows Groups the chosen user (smcenery in this case) is a member of. You can also find some of this information on the User Profile page in Jenkins as well, which was shown in a earlier screenshot.
+
+Depending on how your organization manages users and group membership, you may need to consult an AD Admin to figure out which groups are correct for your given situation.
+
+Here is an example of this screen configured. I have chosen 3 separate Windows Groups that accurately represent the different roles I want people to play within Jenkins.
+
+
+At this point, assuming you have chosen the right Windows Groups, you should be able to remove your username from this screen by clicking the Red X button, click the Save button and Log out and back in to test.
+
+For the purpose of our demonstration, I have configured security in the following manner;
+
+
+This will allow users in the “Developer” role to Find and View jobs, Build and Cancel jobs & view the contents of the Workspace. Developers can also Re-run a job if they see the need. They will not be able to modify the configuration of any Jobs or Jenkins settings. Users in the QA Group are able to Find jobs and view the console output from previous builds.
+
+At this point, you should be able to start allowing other team members to login and test your Jenkins configuration. Assuming everything has been configured correctly, this will all hopefully work exactly as you expect.
+
+Hiding Jobs from Users
+Once you have all your roles and permissions configured correctly, then you can start to do some more interesting things.
+
+One of the things you may have wanted to do in the past is hide certain jobs from certain groups or inversely, limit which jobs certain users are able to interact with.
+
+With Role Management, this actually pretty easy.
+
+
+Jenkins instance showing all configured Jobs
+
+Same Jenkins Instance viewed as a Restricted User
+How you accomplish this, reliably, has a lot to do with how you name your Jobs in Jenkins.
+
+As the two screenshots above show, I as an Admin have unfettered access to all of Jenkins. Contrast that with the second screenshot which shows how this Jenkins instance appears to a person in the Developer role. We accomplished this by configuring Project Roles in the Manage Roles section of Manage and Assign Roles.
+
+
+The Pattern is a simple RegEx that works by matching on the Project\Job Name. This section is configured by entering the name of one of the roles we configured in the Global Roles section earlier in the article, and then setting a RegEx appropriate to filter the Jobs we want users in this role to interact with. In the example pattern above, we are filtering on all jobs whose name starts with Sandbox ( case sensitive ).
+
+You could easily add multiple entries to this table as needed to accomplish your goals. We have found that the easiest to manage permissions in a reliable way is to name all of our jobs in a consistent manner so that we only have to configure a few patterns for Jenkins to match on.
+
+Conclusion
+In conclusion, I hope this article has helped you see how easy it is to configure your Jenkins instances to use Active Directory Integration. Once AD Integration is configured, you can easily build off of that configuration to quickly and easily manage all of your Jenkins permissions and rights. With AD Integration and Role Based Security, there is no reason to keep messing around
